@@ -32,9 +32,28 @@ class CliffWalkingWithPEnv:
         return P
 
 
+class CliffWalkingWithoutPEnv:
+    def __init__(self, ncol=12, nrow=4):
+        self.nrow = nrow
+        self.ncol = ncol
+        self.x = 0
+        self.y = self.nrow - 1
 
-if __name__ == "__main__":
-    env = CliffWalkingWithPEnv()
-    print(env.P)
-    print(env.action)
+    def step(self, action):
+        action_space = [[0, -1], [0, 1], [-1, 0], [1, 0]]  # up, down, left, right
+        self.x = min(max(self.x + action_space[action][0], 0), self.ncol - 1)
+        self.y = min(max(self.y + action_space[action][1], 0), self.nrow - 1)
+        next_state = self.y * self.ncol + self.x
+        reward = -1
+        done = False
+        if self.y == self.nrow - 1 and self.x > 0:  # reach to the cliff or the goal
+            done = True
+            if self.x != self.ncol - 1:
+                reward = -100
+        return next_state, reward, done
+
+    def reset(self):
+        self.x = 0
+        self.y = self.nrow - 1
+        return self.y * self.ncol + self.x
 
