@@ -2,13 +2,18 @@ import numpy as np
 
 
 class SARSA:
-    def __init__(self, env, gamma, alpha, epsilon, n_actions=4):
+    """
+    On policy TD control
+    """
+    def __init__(self, env, gamma, alpha, epsilon, n_actions=4, num_episodes=500, seed=0):
         """
         :param env: environment
         :param gamma: discount factor
         :param alpha: learning rate
         :param epsilon: epsilon for epsilon-greedy policy
         :param n_actions: number of actions
+        :param num_episodes: number of episodes
+        :param seed: random seed
         """
         self.env = env
         self.gamma = gamma
@@ -16,8 +21,16 @@ class SARSA:
         self.Q = np.zeros((self.env.ncol * self.env.nrow, n_actions))
         self.n_actions = n_actions
         self.epsilon = epsilon
+        self.num_episodes = num_episodes
+        self.seed = seed
+        self.return_list = []  # store the return for each episode
 
     def take_action(self, state):
+        """
+        greedy policy with epsilon probability to take random action
+        :param state: the current state
+        :return: action to take
+        """
         if np.random.random() < self.epsilon:
             action = np.random.randint(self.n_actions)
         else:
@@ -37,7 +50,7 @@ class SARSA:
                 a[i] = 1
         return a
 
-    def update(self, state, action, reward, next_state, next_action, **kwargs):
+    def update(self, state, action, reward, next_state, next_action):
         """
         update Q values
         :param state: current state
@@ -50,9 +63,28 @@ class SARSA:
         td_error = reward + self.gamma * self.Q[next_state][next_action] - self.Q[state][action]
         self.Q[state][action] += self.alpha * td_error
 
+    def train(self):
+        np.random.seed(self.seed)
+        for i in range(self.num_episodes):
+            episode_reward = 0
+            state = self.env.reset()
+            action = self.take_action(state)
+            done = False
+            while not done:
+                next_state, reward, done = self.env.step(action)
+                next_action = self.take_action(next_state)
+                episode_reward += reward
+                self.update(state, action, reward, next_state, next_action)
+                state = next_state
+                action = next_action
+            self.return_list.append(episode_reward)
+            if (i + 1) % 10 == 0:
+                print("Average reward for the last 10 episodes with "
+                      "from {} to {} is: {}".format(i - 9, i + 1, np.mean(self.return_list[-10:])))
+
 
 class NStepSARSA:
-    def __init__(self, env, gamma, alpha, epsilon, n_actions=4, n_step=1):
+    def __init__(self, env, gamma, alpha, epsilon, n_actions=4, n_step=1, num_episodes=500, seed=0):
         """
         :param env: environment
         :param gamma: discount factor
@@ -60,6 +92,8 @@ class NStepSARSA:
         :param epsilon: epsilon for epsilon-greedy policy
         :param n_actions: number of actions
         :param n_step: n-step
+        :param num_episodes: number of episodes
+        :param seed: random seed
         """
         self.env = env
         self.gamma = gamma
@@ -71,6 +105,9 @@ class NStepSARSA:
         self.state_list = []
         self.action_list = []
         self.reward_list = []
+        self.num_episodes = num_episodes
+        self.seed = seed
+        self.return_list = []  # store the return for each episode
 
     def take_action(self, state):
         if np.random.random() < self.epsilon:
@@ -87,8 +124,7 @@ class NStepSARSA:
                 a[i] = 1
         return a
 
-    def update(self, state, action, reward, next_state, next_action, **kwargs):
-        done = kwargs.get("done", False)
+    def update(self, state, action, reward, next_state, next_action, done):
         self.state_list.append(state)
         self.action_list.append(action)
         self.reward_list.append(reward)
@@ -97,7 +133,8 @@ class NStepSARSA:
             for i in reversed(range(self.n)):  # accumulate reward from the latest state, action
                 G = self.gamma * G + self.reward_list[i]
                 if done and i > 0:  # update the Q value even if there is less than n steps for the state, action
-                    # (this is critical to make the algorithm work)
+                    # (this is critical to make the algorithm work). For these states, we are updating the Q value like
+                    # using Monte Carlo method
                     s = self.state_list[i]
                     a = self.action_list[i]
                     self.Q[s][a] += self.alpha * (G - self.Q[s][a])
@@ -109,6 +146,29 @@ class NStepSARSA:
             self.state_list = []
             self.action_list = []
             self.reward_list = []
+
+    def train(self):
+        np.random.seed(self.seed)
+        for i in range(self.num_episodes):
+            episode_reward = 0
+            state = self.env.reset()
+            action = self.take_action(state)
+            done = False
+            while not done:
+                next_state, reward, done = self.env.step(action)
+                next_action = self.take_action(next_state)
+                episode_reward += reward
+                self.update(state, action, reward, next_state, next_action, done)
+                state = next_state
+                action = next_action
+            self.return_list.append(episode_reward)
+            if (i + 1) % 10 == 0:
+                print("Average reward for the last 10 episodes with "
+                      "from {} to {} is: {}".format(i - 9, i + 1, np.mean(self.return_list[-10:])))
+
+
+
+
 
 
 

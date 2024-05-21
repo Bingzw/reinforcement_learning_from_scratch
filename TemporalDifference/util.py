@@ -24,3 +24,11 @@ def plot_reward(reward_list, title):
     plt.title(title)
     plt.show()
 
+
+def show_cliffwalking_result(agent, env, plot_title=""):
+    plot_reward(agent.return_list, title=plot_title)
+    print(" ")
+    print("Visualize the policy")
+    action_meaning = ['^', 'v', '<', '>']
+    print_agent(agent=agent, env=env, action_meaning=action_meaning, disaster=list(range(37, 47)), end=[47])
+
