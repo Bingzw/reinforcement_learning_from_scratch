@@ -1,6 +1,7 @@
 from montecarlo import MonteCarlo
 from sarsa import SARSA, NStepSARSA
 from qlearning import QLearning
+from dynaq import DynaQ
 from environment.cliffwalk_env import CliffWalkingWithoutPEnv
 from util import show_cliffwalking_result
 
@@ -14,6 +15,8 @@ if __name__ == '__main__':
     alpha = 0.1
     gamma = 0.9
     num_episodes = 500
+    n_actions = 4
+    n_planning = 2
     agent_mc = MonteCarlo(env=env, gamma=gamma, alpha=alpha, epsilon=epsilon, n_actions=4, num_episodes=num_episodes,
                           seed=SEED)
     agent_sarsa = SARSA(env=env, gamma=gamma, alpha=alpha, epsilon=epsilon, n_actions=4, num_episodes=num_episodes,
@@ -22,6 +25,8 @@ if __name__ == '__main__':
                               num_episodes=num_episodes, seed=SEED)
     agent_q = QLearning(env=env, gamma=gamma, alpha=alpha, epsilon=epsilon, n_actions=4, num_episodes=num_episodes,
                           seed=SEED)
+    agent_dynaq = DynaQ(env=env, gamma=gamma, alpha=alpha, epsilon=epsilon, n_planning=n_planning, n_actions=4,
+                        num_episodes=num_episodes, seed=SEED)
 
     agent_mc.train()
     show_cliffwalking_result(agent=agent_mc, env=env, plot_title="Monte Carlo")
@@ -34,6 +39,9 @@ if __name__ == '__main__':
 
     agent_q.train()
     show_cliffwalking_result(agent=agent_q, env=env, plot_title="QLearning")
+
+    agent_dynaq.train()
+    show_cliffwalking_result(agent=agent_dynaq, env=env, plot_title="DynaQ")
 
 
 
