@@ -1,8 +1,7 @@
 import numpy as np
-from collections import defaultdict
 
 
-class MonteCarlo:
+class QLearning:
     def __init__(self, env, gamma, alpha, epsilon, n_actions=4, num_episodes=500, seed=0):
         """
         :param env: environment
@@ -11,6 +10,7 @@ class MonteCarlo:
         :param epsilon: epsilon for epsilon-greedy policy
         :param n_actions: number of actions
         :param num_episodes: number of episodes
+        :param seed: random seed
         """
         self.env = env
         self.gamma = gamma
@@ -19,10 +19,8 @@ class MonteCarlo:
         self.n_actions = n_actions
         self.epsilon = epsilon
         self.num_episodes = num_episodes
-        self.returns_sum = defaultdict(float)  # store the return for each state-action pair simulation
-        self.returns_count = defaultdict(float)  # store the count of each state-action pair simulation
-        self.return_list = []  # store the return for each episode
         self.seed = seed
+        self.return_list = []  # store the return for each episode
 
     def take_action(self, state):
         """
@@ -33,7 +31,7 @@ class MonteCarlo:
         if np.random.random() < self.epsilon:
             action = np.random.randint(self.n_actions)
         else:
-            action = np.argmax(self.Q[state])
+            action = np.argmax(self.Q[state])  # only take the first best action when tie happens
         return action
 
     def best_action(self, state):
@@ -49,42 +47,33 @@ class MonteCarlo:
                 a[i] = 1
         return a
 
-    def update(self, episode_trajectory):
+    def update(self, state, action, reward, next_state):
         """
         update Q values
-        :param episode_trajectory: a list of (state, action, reward) simulation results
+        :param state: current state
+        :param action: current action
+        :param reward: reward
+        :param next_state: next state
         :return: None
         """
-        sa_in_episode = set([(x[0], x[1]) for x in episode_trajectory])
-        for state, action in sa_in_episode:
-            sa_pair = (state, action)
-            # find the first occurrence of the state-action pair in the episode
-            first_occurrence_idx = next(i for i, x in enumerate(episode_trajectory) if x[0] == state and x[1] == action)
-            # sum up all rewards since the first occurrence
-            G = sum(x[2] * (self.gamma ** i) for i, x in enumerate(episode_trajectory[first_occurrence_idx:]))
-            self.returns_sum[sa_pair] += G
-            self.returns_count[sa_pair] += 1.0
-            self.Q[state][action] = self.returns_sum[sa_pair] / self.returns_count[sa_pair]
+        next_action = np.argmax(self.Q[next_state])  # off-policy, choose the best action no matter how the next
+        # state is reached
+        td_error = reward + self.gamma * self.Q[next_state][next_action] - self.Q[state][action]
+        self.Q[state][action] += self.alpha * td_error
 
     def train(self):
         np.random.seed(self.seed)
         for i in range(self.num_episodes):
-            state = self.env.reset()
-            episode = []  # a list of (state, action, reward) simulation results
             episode_reward = 0
-            while True:  # run monte carlo simulation until done
-                action = self.take_action(state)
+            state = self.env.reset()
+            done = False
+            while not done:
+                action = self.take_action(state)  #
                 next_state, reward, done = self.env.step(action)
-                episode.append((state, action, reward))
-                self.update(episode)  # update Q value here to speed up the training process since W was updated
-                # multiple times per episode
-                state = next_state
                 episode_reward += reward
-                if done:
-                    break
+                self.update(state, action, reward, next_state)
+                state = next_state
             self.return_list.append(episode_reward)
             if (i + 1) % 10 == 0:
                 print("Average reward for the last 10 episodes with "
                       "from {} to {} is: {}".format(i - 9, i + 1, np.mean(self.return_list[-10:])))
-
-

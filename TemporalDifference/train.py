@@ -1,6 +1,6 @@
-import numpy as np
 from montecarlo import MonteCarlo
 from sarsa import SARSA, NStepSARSA
+from qlearning import QLearning
 from environment.cliffwalk_env import CliffWalkingWithoutPEnv
 from util import show_cliffwalking_result
 
@@ -20,6 +20,9 @@ if __name__ == '__main__':
                         seed=SEED)
     agent_nsarsa = NStepSARSA(env=env, gamma=gamma, alpha=alpha, epsilon=epsilon, n_actions=4, n_step=5,
                               num_episodes=num_episodes, seed=SEED)
+    agent_q = QLearning(env=env, gamma=gamma, alpha=alpha, epsilon=epsilon, n_actions=4, num_episodes=num_episodes,
+                          seed=SEED)
+
     agent_mc.train()
     show_cliffwalking_result(agent=agent_mc, env=env, plot_title="Monte Carlo")
 
@@ -28,6 +31,9 @@ if __name__ == '__main__':
 
     agent_nsarsa.train()
     show_cliffwalking_result(agent=agent_nsarsa, env=env, plot_title="NStepSARSA")
+
+    agent_q.train()
+    show_cliffwalking_result(agent=agent_q, env=env, plot_title="QLearning")
 
 
 

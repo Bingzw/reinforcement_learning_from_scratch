@@ -72,9 +72,12 @@ class SARSA:
             done = False
             while not done:
                 next_state, reward, done = self.env.step(action)
-                next_action = self.take_action(next_state)
+                next_action = self.take_action(next_state)  # on-policy, the policy used in this step denotes the
+                # behavior policy (greedy policy in this case)
                 episode_reward += reward
-                self.update(state, action, reward, next_state, next_action)
+                self.update(state, action, reward, next_state, next_action)  # on-policy update, the target policy
+                # (the actions used to update td error, which denotes the policy in the update function) is aligned
+                # with (taken from the same policy) the behavior policy (the actions generated from the sampling)
                 state = next_state
                 action = next_action
             self.return_list.append(episode_reward)
@@ -110,6 +113,11 @@ class NStepSARSA:
         self.return_list = []  # store the return for each episode
 
     def take_action(self, state):
+        """
+        greedy policy with epsilon probability to take random action
+        :param state: the current state
+        :return: action to take
+        """
         if np.random.random() < self.epsilon:
             action = np.random.randint(self.n_actions)
         else:
@@ -117,6 +125,11 @@ class NStepSARSA:
         return action
 
     def best_action(self, state):
+        """
+        get the best action given state
+        :param state: the current state
+        :return: best actions
+        """
         Q_max = np.max(self.Q[state])
         a = [0 for _ in range(self.n_actions)]
         for i in range(self.n_actions):
@@ -125,6 +138,16 @@ class NStepSARSA:
         return a
 
     def update(self, state, action, reward, next_state, next_action, done):
+        """
+        update Q values
+        :param state: current state
+        :param action: current action
+        :param reward: reward
+        :param next_state: next state
+        :param next_action: next action
+        :param done: whether the episode is done
+        :return: None
+        """
         self.state_list.append(state)
         self.action_list.append(action)
         self.reward_list.append(reward)
