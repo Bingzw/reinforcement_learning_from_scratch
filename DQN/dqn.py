@@ -130,7 +130,6 @@ class DQN:
         self.target_update = target_update
         self.count = 0
         self.device = device
-
         self.return_list = []  # store the return for each episode
 
     def take_action(self, state):
