@@ -42,9 +42,16 @@ class DQN:
     Deep Q Network: off-policy Q-learning with function approximation, usually used when the state space is large or
     continuous and the action space is discrete. It uses a neural network to approximate the Q function instead of doing
     table lookup.
+
+    The only difference between double dqn and dqn is that:
+    In DQN, the target value is calculated as: target = reward + gamma * max_a' Q_target(s', a'), where a' is the action
+    chosen from the target q network and the Q_target denotes the target q network
+    In Double DQN, the target value is calculated as: target = reward + gamma * Q_target(s', argmax_a' Q_train(s', a')),
+    where a' is chosen from the training q network.
+    This is to prevent overestimation of the Q values.
     """
     def __init__(self, env, state_dim, hidden_dim, action_dim, learning_rate, gamma, epsilon, target_update, buffer_size,
-                 device):
+                 device, dqn_type='vanillaDQN'):
         """
         :param env: environment
         :param state_dim: the dimension of the state space
@@ -56,11 +63,13 @@ class DQN:
         :param target_update: the frequency of updating the target network
         :param buffer_size: the size of the replay buffer
         :param device: device to run the Q network on
+        :param dqn_type: the type of DQN, either 'vanillaDQN' or 'doubleDQN'
         """
         self.env = env
         self.action_dim = action_dim
-        self.q_net = Qnet(state_dim, hidden_dim, action_dim).to(device)
-        self.target_q_net = Qnet(state_dim, hidden_dim, action_dim).to(device)
+        self.q_net = Qnet(state_dim, hidden_dim, action_dim).to(device)  # the training q network used to choose action
+        self.target_q_net = Qnet(state_dim, hidden_dim, action_dim).to(device)  # the target q network used to
+        # calculate target value
         self.replay_buffer = ReplayBuffer(capacity=buffer_size)
         self.optimizer = torch.optim.Adam(self.q_net.parameters(), lr=learning_rate)
         self.gamma = gamma
@@ -68,6 +77,7 @@ class DQN:
         self.target_update = target_update
         self.count = 0
         self.device = device
+        self.dqn_type = dqn_type
         self.return_list = []  # store the return for each episode
 
     def take_action(self, state):
@@ -99,7 +109,12 @@ class DQN:
         next_states = torch.tensor(next_states, dtype=torch.float32).to(self.device)
         dones = torch.tensor(dones).to(torch.int32).view(-1, 1).to(self.device)
         q_values = self.q_net(states).gather(1, actions)  # get the q values of the actions taken
-        max_next_q_values = self.target_q_net(next_states).max(dim=1)[0].view(-1, 1)
+        if self.dqn_type == 'vanillaDQN':  # get max_action from target q network
+            max_next_q_values = self.target_q_net(next_states).max(dim=1)[0].view(-1, 1)
+        elif self.dqn_type == 'doubleDQN':  # get max_action from training q network
+            max_action = self.q_net(next_states).max(dim=1)[1].view(-1, 1)  # note that the second return value is the
+            # action index
+            max_next_q_values = self.target_q_net(next_states).gather(1, max_action)
         q_targets = rewards + self.gamma * max_next_q_values * (1 - dones)
         dqn_loss = torch.mean(F.mse_loss(q_values, q_targets.detach()))
         self.optimizer.zero_grad()
