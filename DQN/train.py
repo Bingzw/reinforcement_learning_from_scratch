@@ -35,6 +35,9 @@ if __name__ == '__main__':
     agent_double_dqn = DQN(env=env, state_dim=state_dim, hidden_dim=hidden_dim, action_dim=action_dim,
                             learning_rate=lr, gamma=gamma, epsilon=epsilon, target_update=target_update,
                             buffer_size=buffer_size, device=device, dqn_type='doubleDQN')
+    agent_dueling_dqn = DQN(env=env, state_dim=state_dim, hidden_dim=hidden_dim, action_dim=action_dim,
+                            learning_rate=lr, gamma=gamma, epsilon=epsilon, target_update=target_update,
+                            buffer_size=buffer_size, device=device, dqn_type='duelingDQN')
 
     agent_vanilla_dqn.train(num_episodes=num_episodes, batch_size=batch_size, min_buffer_size=min_buffer_size)
     plot_reward(reward_list=agent_vanilla_dqn.return_list, title="Vanilla DQN")
@@ -42,14 +45,24 @@ if __name__ == '__main__':
     agent_double_dqn.train(num_episodes=num_episodes, batch_size=batch_size, min_buffer_size=min_buffer_size)
     plot_reward(reward_list=agent_double_dqn.return_list, title="Double DQN")
 
-    # plot two rewards in the same plot
-    plt.plot(agent_vanilla_dqn.return_list, label='Vanilla DQN')
-    plt.plot(agent_double_dqn.return_list, label='Double DQN')
+    agent_dueling_dqn.train(num_episodes=num_episodes, batch_size=batch_size, min_buffer_size=min_buffer_size)
+    plot_reward(reward_list=agent_dueling_dqn.return_list, title="Dueling DQN")
+
+    # play the game with the trained agent
+    valilla_dqn_reward = agent_vanilla_dqn.play(num_episodes=100)
+    double_dqn_reward = agent_double_dqn.play(num_episodes=100)
+    dueling_dqn_reward = agent_dueling_dqn.play(num_episodes=100)
+
+    # plot the rewards in the same plot
+    plt.plot(valilla_dqn_reward, label='Vanilla DQN')
+    plt.plot(double_dqn_reward, label='Double DQN')
+    plt.plot(dueling_dqn_reward, label='Dueling DQN')
     plt.xlabel('Episodes')
     plt.ylabel('Rewards')
     plt.title('Comparison of Vanilla DQN and Double DQN')
     plt.legend()
     plt.show()
+
 
 
 
