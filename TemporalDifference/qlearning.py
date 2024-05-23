@@ -68,7 +68,7 @@ class QLearning:
             state = self.env.reset()
             done = False
             while not done:
-                action = self.take_action(state)  #
+                action = self.take_action(state)
                 next_state, reward, done = self.env.step(action)
                 episode_reward += reward
                 self.update(state, action, reward, next_state)
