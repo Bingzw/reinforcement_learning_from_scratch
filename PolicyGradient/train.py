@@ -5,7 +5,7 @@ import numpy as np
 from reinforce import REINFORCE
 from actor_critic import ActorCritic
 from ppo import PPO, PPOContinuous
-from ddpg import DDPG, ReplayBuffer
+from ddpq import DDPG, ReplayBuffer
 from util import plot_reward
 import matplotlib.pyplot as plt
 
