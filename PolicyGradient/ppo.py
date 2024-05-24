@@ -34,14 +34,13 @@ class ValueNet(nn.Module):
         return x
 
 
-class ActorCritic:
+class PPO:
     """
-    Actor-Critic algorithm: combines the advantages of both policy gradient and value-based methods. The actor network
-    learns the policy, and the critic network learns the value function. When updating the critic network, we use the
-    temporal difference error to update the value function. When updating the actor network, we followed the same target
-    derived from policy gradient.
+    Proximal Policy Optimization algorithm: An advanced algorithm on top of TRPO. It uses a clipped objective function
+    to prevent the policy from changing too much in each update.
     """
-    def __init__(self, env, state_dim, hidden_dim, action_dim, actor_lr, critic_lr, gamma, device):
+    def __init__(self, env, state_dim, hidden_dim, action_dim, actor_lr, critic_lr, lmbda, epochs, epsilon, gamma,
+                 device):
         """
         :param env: environment
         :param state_dim: the dimension of the state space
@@ -49,15 +48,21 @@ class ActorCritic:
         :param action_dim: the dimension of the action space
         :param actor_lr: actor learning rate
         :param critic_lr: critic learning rate
+        :param lmbda: GAE parameter
+        :param epochs: number of epochs
+        :param epsilon: the range to clip the ratio
         :param gamma: discount factor
         :param device: device
         """
+        self.env = env
         self.actor = PolicyNet(state_dim, hidden_dim, action_dim).to(device)
         self.critic = ValueNet(state_dim, hidden_dim).to(device)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=critic_lr)
-        self.env = env
+        self.lmbda = lmbda
         self.gamma = gamma
+        self.epsilon = epsilon
+        self.epochs = epochs
         self.device = device
         self.return_list = []
 
@@ -72,6 +77,23 @@ class ActorCritic:
         action_dist = torch.distributions.Categorical(probs)
         action = action_dist.sample()
         return action.item()
+
+    def calculate_advantage(self, gamma, lmbda, td_delta):
+        """
+        Calculate the advantage
+        :param gamma: discount factor
+        :param lmbda: GAE parameter
+        :param td_delta: temporal difference error
+        :return: tensor of advantage
+        """
+        td_delta = td_delta.detach().numpy()
+        advantage_list = []
+        advantage = 0.0
+        for delta in td_delta[::-1]:
+            advantage = gamma * lmbda * advantage + delta
+            advantage_list.append(advantage)
+        advantage_list.reverse()
+        return torch.tensor(advantage_list, dtype=torch.float32)
 
     def update(self, state_list, action_list, reward_list, next_state_list, done_list):
         """
@@ -88,31 +110,24 @@ class ActorCritic:
         next_states = torch.tensor(next_state_list, dtype=torch.float32).to(self.device)
         dones = torch.tensor(done_list, dtype=torch.float32).view(-1, 1).to(self.device)
 
-        # critic network loss: V(s) <- V(s) + alpha * (V(s') - V(s)), this is the one of the multiple approaches to
-        # learn the value function, it was derived from policy gradient.
-        # 1. Initially, d_theta(J)/d_theta = E[Q(s,a)*d_theta(log(pi(a|s)))]
-        # 2. the Q(s, a) can be estimated by value function V(s), Q(s, a) = E[r + gamma * V(s')]
-        # 3. usually, we would like to add baseline function to reduce variance,
-        # so the Q(s, a) = E[r + gamma * (V(s') - V(s))]
-        # 4. In production, ignoring the expectation usually works better to allow more explorations, so
-        # Q(s, a) = r + gamma * (V(s') - V(s))
-        td_target = rewards + self.gamma * (1 - dones) * self.critic(next_states)  # note that unlike DQN which
-        # maintains a target network, here we are using the same critic network to estimate the value of the next state
-        # (without updating the parameters). The main reason that a target critic network is not needed is:
-        # The q network in DQN is used to take the max action, so it is important to have a stable target network.
-        # While the actor network in actor-critic is used to sample the action, so the stability is not as important as
-        # DQN, it's updating parameters more frequently than DQN, thus also reducing the necessity of a target network.
+        td_target = rewards + self.gamma * self.critic(next_states) * (1 - dones)
         td_delta = td_target - self.critic(states)
-        # actor network loss
-        log_probs = torch.log(self.actor(states).gather(1, actions))
-        actor_loss = torch.mean(-log_probs * td_delta.detach())  # adding detach to prevent backpropagation
-        critic_loss = F.mse_loss(self.critic(states), td_target.detach())  # adding detach to prevent backpropagation
-        self.actor_optimizer.zero_grad()
-        actor_loss.backward()
-        self.actor_optimizer.step()
-        self.critic_optimizer.zero_grad()
-        critic_loss.backward()
-        self.critic_optimizer.step()
+        advantage = self.calculate_advantage(self.gamma, self.lmbda, td_delta.cpu()).to(self.device)
+        old_log_probs = torch.log(self.actor(states).gather(1, actions)).detach()
+
+        for _ in range(self.epochs):
+            log_probs = torch.log(self.actor(states).gather(1, actions))
+            ratio = torch.exp(log_probs - old_log_probs)
+            surr1 = ratio * advantage
+            surr2 = torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon) * advantage
+            actor_loss = -torch.mean(torch.min(surr1, surr2))
+            critic_loss = torch.mean(F.mse_loss(self.critic(states), td_target.detach()))
+            self.actor_optimizer.zero_grad()
+            self.critic_optimizer.zero_grad()
+            actor_loss.backward()
+            critic_loss.backward()
+            self.actor_optimizer.step()
+            self.critic_optimizer.step()
 
     def train(self, num_episodes):
         for i in range(num_episodes):
@@ -151,9 +166,4 @@ class ActorCritic:
                 total_reward += reward
             reward_list.append(total_reward)
         return reward_list
-
-
-
-
-
 

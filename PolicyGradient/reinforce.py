@@ -68,7 +68,7 @@ class REINFORCE:
             loss.backward()
         self.optimizer.step()
 
-    def train(self, num_episodes):
+    def train(self, num_episodes):  # on-policy training
         for i in range(num_episodes):
             episode_reward = 0
             state, info = self.env.reset()
