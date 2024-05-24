@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from tqdm import tqdm
 
 
 class PolicyNet(nn.Module):
@@ -148,6 +149,125 @@ class PPO:
                 episode_reward += reward
             self.return_list.append(episode_reward)
             self.update(state_list, action_list, reward_list, next_state_list, done_list)
+            if (i + 1) % 10 == 0:
+                print("Average reward for the last 10 episodes with "
+                      "from {} to {} is: {}".format(i - 9, i + 1, np.mean(self.return_list[-10:])))
+
+    def play(self, num_episodes):
+        reward_list = []
+        for i in range(num_episodes):
+            state, info = self.env.reset()
+            done = False
+            total_reward = 0
+            truncated = False
+            while not done and not truncated:
+                action = self.take_action(state)
+                next_state, reward, done, truncated, info = self.env.step(action)
+                state = next_state
+                total_reward += reward
+            reward_list.append(total_reward)
+        return reward_list
+
+
+class PolicyNetContinuous(torch.nn.Module):
+    def __init__(self, state_dim, hidden_dim, action_dim):
+        super(PolicyNetContinuous, self).__init__()
+        self.fc1 = torch.nn.Linear(state_dim, hidden_dim)
+        self.fc_mu = torch.nn.Linear(hidden_dim, action_dim)
+        self.fc_std = torch.nn.Linear(hidden_dim, action_dim)
+
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        mu = 2.0 * torch.tanh(self.fc_mu(x))
+        std = F.softplus(self.fc_std(x))
+        return mu, std
+
+
+class PPOContinuous:
+    def __init__(self, env, state_dim, hidden_dim, action_dim, actor_lr, critic_lr, lmbda, epochs, epsilon, gamma,
+                 device):
+        self.env = env
+        self.actor = PolicyNetContinuous(state_dim, hidden_dim,
+                                         action_dim).to(device)
+        self.critic = ValueNet(state_dim, hidden_dim).to(device)
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(),
+                                                lr=actor_lr)
+        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(),
+                                                 lr=critic_lr)
+        self.gamma = gamma
+        self.lmbda = lmbda
+        self.epochs = epochs
+        self.epsilon = epsilon
+        self.device = device
+        self.return_list = []
+
+    def take_action(self, state):
+        state = torch.tensor([state], dtype=torch.float32).to(self.device)
+        mu, sigma = self.actor(state)
+        action_dist = torch.distributions.Normal(mu, sigma)
+        action = action_dist.sample()
+        return [action.item()]
+
+    def compute_advantage(self, gamma, lmbda, td_delta):
+        td_delta = td_delta.detach().numpy()
+        advantage_list = []
+        advantage = 0.0
+        for delta in td_delta[::-1]:
+            advantage = gamma * lmbda * advantage + delta
+            advantage_list.append(advantage)
+        advantage_list.reverse()
+        return torch.tensor(advantage_list, dtype=torch.float32)
+
+    def update(self, state_list, action_list, reward_list, next_state_list, done_list):
+        states = torch.tensor(state_list, dtype=torch.float32).to(self.device)
+        actions = torch.tensor(action_list, dtype=torch.float32).view(-1, 1).to(self.device)
+        rewards = torch.tensor(reward_list, dtype=torch.float32).view(-1, 1).to(self.device)
+        next_states = torch.tensor(next_state_list, dtype=torch.float32).to(self.device)
+        dones = torch.tensor(done_list, dtype=torch.float32).view(-1, 1).to(self.device)
+        rewards = (rewards + 8.0) / 8.0
+        td_target = rewards + self.gamma * self.critic(next_states) * (1 - dones)
+        td_delta = td_target - self.critic(states)
+        advantage = self.compute_advantage(self.gamma, self.lmbda, td_delta.cpu()).to(self.device)
+        mu, std = self.actor(states)
+        action_dists = torch.distributions.Normal(mu.detach(), std.detach())
+        old_log_probs = action_dists.log_prob(actions)
+
+        for _ in range(self.epochs):
+            mu, std = self.actor(states)
+            action_dists = torch.distributions.Normal(mu, std)
+            log_probs = action_dists.log_prob(actions)
+            ratio = torch.exp(log_probs - old_log_probs)
+            surr1 = ratio * advantage
+            surr2 = torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon) * advantage
+            actor_loss = torch.mean(-torch.min(surr1, surr2))
+            critic_loss = torch.mean(
+                F.mse_loss(self.critic(states), td_target.detach()))
+            self.actor_optimizer.zero_grad()
+            self.critic_optimizer.zero_grad()
+            actor_loss.backward()
+            critic_loss.backward()
+            self.actor_optimizer.step()
+            self.critic_optimizer.step()
+
+    def train(self, num_episodes):
+        for i in range(num_episodes):
+            episode_reward = 0
+            states, actions, rewards, next_states, dones = [], [], [], [], []
+            state, info = self.env.reset()
+            done = False
+            truncated = False
+            while not done and not truncated:
+                action = self.take_action(state)
+                next_state, reward, done, truncated, info = self.env.step(action)
+                states.append(state)
+                actions.append(action)
+                next_states.append(next_state)
+                rewards.append(reward)
+                dones.append(done)
+                state = next_state
+                episode_reward += reward
+            self.return_list.append(episode_reward)
+            self.update(states, actions, rewards, next_states, dones)
             if (i + 1) % 10 == 0:
                 print("Average reward for the last 10 episodes with "
                       "from {} to {} is: {}".format(i - 9, i + 1, np.mean(self.return_list[-10:])))
