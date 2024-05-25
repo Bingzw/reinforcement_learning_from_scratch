@@ -186,6 +186,7 @@ if __name__ == '__main__':
     # plot the rewards in the same plot
     plt.plot(ppo_c_reward, label='PPO_Continuous')
     plt.plot(ddpg_reward, label='DDPQ')
+    plt.plot(sac_reward, label='SAC')
     plt.xlabel('Episodes')
     plt.ylabel('Rewards')
     plt.title('Comparison of PPO and DDPQ')
