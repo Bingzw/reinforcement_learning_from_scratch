@@ -105,7 +105,7 @@ class ActorCritic:
         # actor network loss
         log_probs = torch.log(self.actor(states).gather(1, actions))
         actor_loss = torch.mean(-log_probs * td_delta.detach())  # adding detach to prevent backpropagation
-        # the critic loss is the mse between critic and td target
+        # the critic loss is the mse between critic predicted value and actural returns
         critic_loss = F.mse_loss(self.critic(states), td_target.detach())  # adding detach to prevent backpropagation
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
