@@ -130,3 +130,18 @@ class DDPG:
             if (i + 1) % 10 == 0:
                 print("Average reward for the last 10 episodes with "
                       "from {} to {} is: {}".format(i - 9, i + 1, np.mean(self.return_list[-10:])))
+
+    def play(self, num_episodes):
+        reward_list = []
+        for i in range(num_episodes):
+            state, info = self.env.reset()
+            done = False
+            total_reward = 0
+            truncated = False
+            while not done and not truncated:
+                action = self.take_action(state)
+                next_state, reward, done, truncated, info = self.env.step(action)
+                state = next_state
+                total_reward += reward
+            reward_list.append(total_reward)
+        return reward_list

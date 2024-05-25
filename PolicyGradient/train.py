@@ -28,7 +28,7 @@ cartpole_params = {
 
 ppo_pendulum_params = {
     'env_name': 'Pendulum-v1',
-    'num_episodes': 2000,
+    'num_episodes': 1000,
     'hidden_dim': 128,
     'gamma': 0.9,
     'actor_lr': 1e-4,
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     lmbda = cartpole_params['lmbda']
     epochs = cartpole_params['epochs']
     eps = cartpole_params['eps']
-
+    """
     # try different approaches on CartPole-v1
     env_name = cartpole_params['env_name']
     env = gym.make(env_name)
@@ -106,6 +106,7 @@ if __name__ == '__main__':
     plt.title('Comparison of Reinforce, Actor Critic and PPO')
     plt.legend()
     plt.show()
+    """
 
     # try different approaches on Pendulum-v1
     env_name = ppo_pendulum_params['env_name']
@@ -127,7 +128,7 @@ if __name__ == '__main__':
                                 epsilon=ppo_pendulum_params['eps'],
                                 gamma=ppo_pendulum_params['gamma'],
                                 device=device)
-    agent_ppo_c.train(num_episodes)
+    agent_ppo_c.train(ppo_pendulum_params['num_episodes'])
     plot_reward(reward_list=agent_ppo_c.return_list, title="PPO_Continuous")
 
     replay_buffer = ReplayBuffer(ddpg_pendulum_params['buffer_size'])
@@ -142,7 +143,7 @@ if __name__ == '__main__':
                         tau=ddpg_pendulum_params['tau'],
                         sigma=ddpg_pendulum_params['sigma'],
                         device=device)
-    agent_ddpg.train(replay_buffer, num_episodes, ddpg_pendulum_params['minimal_size'],
+    agent_ddpg.train(replay_buffer, ddpg_pendulum_params['num_episodes'], ddpg_pendulum_params['minimal_size'],
                      ddpg_pendulum_params['batch_size'])
     plot_reward(reward_list=agent_ddpg.return_list, title="DDPG")
 
