@@ -35,6 +35,11 @@ class PolicyNet(torch.nn.Module):
         self.action_bound = action_bound
 
     def forward(self, x):
+        """
+        ouput a deterministic action
+        :param x: state
+        :return: action
+        """
         x = F.relu(self.fc1(x))
         return torch.tanh(self.fc2(x)) * self.action_bound
 
