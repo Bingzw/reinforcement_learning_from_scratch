@@ -6,6 +6,7 @@ from reinforce import REINFORCE
 from actor_critic import ActorCritic
 from ppo import PPO, PPOContinuous
 from ddpq import DDPG, ReplayBuffer
+from sac import SACContinuous
 from util import plot_reward
 import matplotlib.pyplot as plt
 
@@ -53,6 +54,20 @@ ddpg_pendulum_params = {
 
 }
 
+sac_pendulum_params = {
+    'env_name': 'Pendulum-v1',
+    'actor_lr': 3e-4,
+    'critic_lr': 3e-3,
+    'alpha_lr': 3e-4,
+    'num_episodes': 100,
+    'hidden_dim': 128,
+    'gamma': 0.99,
+    'tau': 0.005,
+    'buffer_size': 10000,
+    'minimal_size': 1000,
+    'batch_size': 64,
+}
+
 
 if __name__ == '__main__':
     SEED = 0
@@ -66,7 +81,7 @@ if __name__ == '__main__':
     lmbda = cartpole_params['lmbda']
     epochs = cartpole_params['epochs']
     eps = cartpole_params['eps']
-    """
+
     # try different approaches on CartPole-v1
     env_name = cartpole_params['env_name']
     env = gym.make(env_name)
@@ -106,7 +121,6 @@ if __name__ == '__main__':
     plt.title('Comparison of Reinforce, Actor Critic and PPO')
     plt.legend()
     plt.show()
-    """
 
     # try different approaches on Pendulum-v1
     env_name = ppo_pendulum_params['env_name']
@@ -117,6 +131,7 @@ if __name__ == '__main__':
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
     action_bound = env.action_space.high[0]
+
     agent_ppo_c = PPOContinuous(env=env,
                                 state_dim=state_dim,
                                 hidden_dim=hidden_dim,
@@ -131,7 +146,7 @@ if __name__ == '__main__':
     agent_ppo_c.train(ppo_pendulum_params['num_episodes'])
     plot_reward(reward_list=agent_ppo_c.return_list, title="PPO_Continuous")
 
-    replay_buffer = ReplayBuffer(ddpg_pendulum_params['buffer_size'])
+    ddpg_replay_buffer = ReplayBuffer(ddpg_pendulum_params['buffer_size'])
     agent_ddpg = DDPG(env=env,
                         state_dim=state_dim,
                         hidden_dim=hidden_dim,
@@ -143,13 +158,31 @@ if __name__ == '__main__':
                         tau=ddpg_pendulum_params['tau'],
                         sigma=ddpg_pendulum_params['sigma'],
                         device=device)
-    agent_ddpg.train(replay_buffer, ddpg_pendulum_params['num_episodes'], ddpg_pendulum_params['minimal_size'],
+    agent_ddpg.train(ddpg_replay_buffer, ddpg_pendulum_params['num_episodes'], ddpg_pendulum_params['minimal_size'],
                      ddpg_pendulum_params['batch_size'])
     plot_reward(reward_list=agent_ddpg.return_list, title="DDPG")
+
+    sac_replay_buffer = ReplayBuffer(sac_pendulum_params['buffer_size'])
+    agent_sac = SACContinuous(env=env,
+                              state_dim=state_dim,
+                              hidden_dim=hidden_dim,
+                              action_dim=action_dim,
+                              action_bound=action_bound,
+                              actor_lr=sac_pendulum_params['actor_lr'],
+                              critic_lr=sac_pendulum_params['critic_lr'],
+                              alpha_lr=sac_pendulum_params['alpha_lr'],
+                              target_entropy=-env.action_space.shape[0],
+                              gamma=sac_pendulum_params['gamma'],
+                              tau=sac_pendulum_params['tau'],
+                              device=device)
+    agent_sac.train(sac_replay_buffer, sac_pendulum_params['num_episodes'], sac_pendulum_params['minimal_size'],
+                    sac_pendulum_params['batch_size'])
+    plot_reward(reward_list=agent_sac.return_list, title="SAC")
 
     # play the game with the trained agent
     ppo_c_reward = agent_ppo_c.play(num_episodes=100)
     ddpg_reward = agent_ddpg.play(num_episodes=100)
+    sac_reward = agent_sac.play(num_episodes=100)
     # plot the rewards in the same plot
     plt.plot(ppo_c_reward, label='PPO_Continuous')
     plt.plot(ddpg_reward, label='DDPQ')
