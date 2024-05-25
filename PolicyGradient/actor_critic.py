@@ -88,8 +88,7 @@ class ActorCritic:
         next_states = torch.tensor(next_state_list, dtype=torch.float32).to(self.device)
         dones = torch.tensor(done_list, dtype=torch.float32).view(-1, 1).to(self.device)
 
-        # critic network loss: V(s) <- V(s) + alpha * (V(s') - V(s)), this is the one of the multiple approaches to
-        # learn the value function, it was derived from policy gradient.
+        # the actor loss is derived from policy gradient.
         # 1. Initially, d_theta(J)/d_theta = E[Q(s,a)*d_theta(log(pi(a|s)))]
         # 2. the Q(s, a) can be estimated by value function V(s), Q(s, a) = E[r + gamma * V(s')]
         # 3. usually, we would like to add baseline function to reduce variance,
@@ -106,6 +105,7 @@ class ActorCritic:
         # actor network loss
         log_probs = torch.log(self.actor(states).gather(1, actions))
         actor_loss = torch.mean(-log_probs * td_delta.detach())  # adding detach to prevent backpropagation
+        # the critic loss is the mse between critic and td target
         critic_loss = F.mse_loss(self.critic(states), td_target.detach())  # adding detach to prevent backpropagation
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
